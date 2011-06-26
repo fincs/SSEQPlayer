@@ -1,0 +1,1 @@
+Place here your SBNK, SSEQ and SWAR files!

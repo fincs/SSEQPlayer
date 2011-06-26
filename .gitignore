@@ -1,0 +1,8 @@
+*.bin
+*.elf
+*/build
+*.nds
+/oldfs
+*.sseq
+*.sbnk
+*.swar
