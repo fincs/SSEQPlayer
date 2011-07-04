@@ -19,6 +19,11 @@ void InstallSoundSys()
 
 	/* Install FIFO */
 	fifoSetDatamsgHandler(FIFO_SNDSYS, sndsysMsgHandler, 0);
+
+	/* Clear track-channel assignations */
+	register int i;
+	for (i = 0; i < 16; i ++)
+		ADSR_ch[i].track = -1;
 }
 
 static void ADSR_tick();
@@ -82,6 +87,8 @@ static void ADSR_tickchn(int ch)
 			{
 				//REG.CR = 0;
 				SETSTATE(ADSR_NONE);
+				chstat->count = 0;
+				chstat->track = -1;
 				return;
 			}
 			break;
@@ -109,7 +116,8 @@ static void ADSR_tickchn(int ch)
 __adsr_release:
 				SETSTATE(ADSR_NONE);
 				//REG.CR = 0;
-				if (chstat->extra) *chstat->extra = 0;
+				chstat->count = 0;
+				chstat->track = -1;
 				SCHANNEL_CR(ch) = 0;
 				return;
 			}

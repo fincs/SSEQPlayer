@@ -72,20 +72,11 @@ int ds_freechn2(int prio)
 			return i;
 	for(i = 0; i < 16; i ++)
 		if (ADSR_ch[i].prio < prio)
-		{
-			if (ADSR_ch[i].extra)
-			{
-#ifdef LOG_CUTOFF
-				nocashMessage("Cutoff prevention #1");
-#endif
-				*ADSR_ch[i].extra = 0;
-			}
 			return i;
-		}
 	return -1;
 }
 
-int _Note(void* bnk, void* war, int instr, int note, int prio, playinfo_t* playinfo, int* extra)
+int _Note(void* bnk, void* war, int instr, int note, int prio, playinfo_t* playinfo, int duration, int track)
 {
 	int ch = ds_freechn2(prio);
 	if (ch < 0) return -1;
@@ -132,7 +123,8 @@ int _Note(void* bnk, void* war, int instr, int note, int prio, playinfo_t* playi
 	chstat->s = CnvSust(notedef->s);
 	chstat->r = CnvFall(notedef->r)<<2; // HACK: please help
 	chstat->prio = prio;
-	chstat->extra = extra;
+	chstat->count = duration;
+	chstat->track = track;
 	chstat->state = ADSR_START;
 
 	return ch;
@@ -140,20 +132,11 @@ int _Note(void* bnk, void* war, int instr, int note, int prio, playinfo_t* playi
 
 void _NoteStop(int n)
 {
-	ADSR_stat_t* chstat = ADSR_ch + n;
-	chstat->state = ADSR_RELEASE;
-	chstat->extra = NULL;
+	ADSR_ch[n].state = ADSR_RELEASE;
 }
 
 typedef struct
 {
-	int count;
-	int handle;
-} notestat_t;
-
-typedef struct
-{
-	notestat_t notes[16];
 	int count;
 	int pos;
 	int ret;
@@ -216,6 +199,18 @@ void seq_tick()
 #ifdef LOG_SEQ
 	nocashMessage("Tick!");
 #endif
+
+	// Handle note durations
+	for (i = 0; i < 16; i ++)
+	{
+		ADSR_stat_t* chstat = ADSR_ch + i;
+		if (chstat->count)
+		{
+			chstat->count --;
+			if (!chstat->count) _NoteStop(i);
+		}
+	}
+
 	for (i = 0; i < ntracks; i ++)
 		track_tick(i);
 }
@@ -232,20 +227,13 @@ int read_vl(int* pos)
 	return v;
 }
 
-int seq_freenote(notestat_t* notes)
-{
-	register int i;
-	for(i = 0; i < 16; i ++) if(!notes[i].count) return i;
-	return -1;
-}
-
-void seq_updatenotes(notestat_t* notes, playinfo_t* info)
+void seq_updatenotes(int track, playinfo_t* info)
 {
 	int i = 0;
 	for (i = 0; i < 16; i ++)
 	{
-		if (!notes[i].count) continue;
-		ADSR_stat_t* chstat = ADSR_ch + notes[i].handle;
+		ADSR_stat_t* chstat = ADSR_ch + i;
+		if (chstat->track != track) continue;
 		chstat->vol = info->vol;
 		chstat->expr = info->expr;
 		chstat->pan = info->pan;
@@ -255,29 +243,6 @@ void seq_updatenotes(notestat_t* notes, playinfo_t* info)
 void track_tick(int n)
 {
 	trackstat_t* track = tracks + n;
-
-	// Run each note:
-	int i;
-	for (i = 0; i < 8; i ++)
-	{
-		notestat_t* note = track->notes + i;
-		if (note->count)
-		{
-			ADSR_stat_t* chstat = ADSR_ch + note->handle;
-			if (chstat->state == ADSR_NONE || !SCHANNEL_ACTIVE(note->handle))
-			{
-				chstat->state = ADSR_NONE;
-				chstat->extra = NULL;
-#ifdef LOG_CUTOFF
-				nocashMessage("Cutoff prevention #3");
-#endif
-				note->count = 0;
-				continue;
-			}
-			note->count --;
-			if (!note->count) _NoteStop(note->handle);
-		}
-	}
 
 	if (track->count)
 	{
@@ -304,16 +269,11 @@ void track_tick(int n)
 			// NOTE-ON
 			u8  vel = SEQ_READ8(track->pos); track->pos ++;
 			int len = read_vl(&track->pos);
-			i = seq_freenote(track->notes);
 			if (track->waitmode) track->count = len;
-			if (i < 0) continue;
 
 			track->playinfo.vel = vel;
-			int handle = _Note(seqBnk, seqWar, track->patch, cmd, track->prio, &track->playinfo, &track->notes[i].count);
+			int handle = _Note(seqBnk, seqWar, track->patch, cmd, track->prio, &track->playinfo, len, n);
 			if (handle < 0) continue;
-
-			track->notes[i].count = len;
-			track->notes[i].handle = handle;
 		}else switch(cmd)
 		{
 			case 0x80: // REST
@@ -364,7 +324,7 @@ void track_tick(int n)
 				nocashMessage("PAN");
 #endif
 				track->playinfo.pan = SEQ_READ8(track->pos); track->pos ++;
-				seq_updatenotes(track->notes, &track->playinfo);
+				seq_updatenotes(n, &track->playinfo);
 				break;
 			}
 			case 0xC1: // VOL
@@ -373,7 +333,7 @@ void track_tick(int n)
 				nocashMessage("VOL");
 #endif
 				track->playinfo.vol = SEQ_READ8(track->pos); track->pos ++;
-				seq_updatenotes(track->notes, &track->playinfo);
+				seq_updatenotes(n, &track->playinfo);
 				break;
 			}
 			case 0xC2: // MASTER VOL
@@ -439,7 +399,7 @@ void track_tick(int n)
 				nocashMessage("EXPR");
 #endif
 				track->playinfo.expr = SEQ_READ8(track->pos); track->pos ++;
-				seq_updatenotes(track->notes, &track->playinfo);
+				seq_updatenotes(n, &track->playinfo);
 				break;
 			}
 			case 0xE0: // MODULATION DELAY

@@ -73,7 +73,8 @@ typedef struct
 	int ampl;
 	int a,d,s,r;
 	int prio;
-	int* extra;
+
+	int count,track;
 	
 	sndreg_t reg;
 } ADSR_stat_t;
