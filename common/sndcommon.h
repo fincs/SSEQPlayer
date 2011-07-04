@@ -1,6 +1,6 @@
 #pragma once
 
-#define FIFO_SNDSYS FIFO_MAXMOD // Shh... Don't tell WinterMute about this...
+#define FIFO_SNDSYS FIFO_USER_01
 
 void InstallSoundSys();
 
