@@ -135,6 +135,7 @@ __adsr_release:
 
 	int t_vol = ADSR_MIXVOL3(VOL, VEL, EXPR);
 	SCHANNEL_VOL(ch) = ADSR_MIXVOL(t_vol, adsr_vol), SCHANNEL_PAN(ch) = (PAN + PAN2) >> 1;
+	SCHANNEL_TIMER(ch) = REG.TIMER;
 
 #undef AMPL
 #undef VOL

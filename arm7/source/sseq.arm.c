@@ -4,9 +4,9 @@
 #include <string.h>
 #include <sndcommon.h>
 
-#define ADJUST_FREQ(baseFreq,noteN,baseN) (((int)(baseFreq)*freqTable[noteN])/freqTable[baseN])
+#define ADJUST_FREQ(baseFreq,noteN,baseN) (((int)(baseFreq)*(int)freqTable[noteN])/(int)freqTable[baseN])
 
-static const int freqTable[128] = {
+static const u16 freqTable[128] = {
 	8, 9, 9, 10, 11, 11, 12, 13, 14, 15, 15,
 	16, 17, 18, 19, 21, 22, 23, 24, 26, 28, 29, 31,
 	33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 62,
@@ -19,6 +19,57 @@ static const int freqTable[128] = {
 	4185, 4435, 4599, 4978, 5274, 5588, 5920, 6272, 6645, 7040, 7459, 7902,
 	8372, 8870, 9397, 9956, 10548, 11175, 11840, 12544
 };
+
+static const u16 pitchBendTable[256] = {
+	0, 29, 59, 88, 118, 148, 177, 207,
+	237, 266, 296, 326, 355, 385, 415, 445,
+	474, 504, 534, 564, 594, 624, 653, 683,
+	713, 743, 773, 803, 833, 863, 893, 923,
+	953, 983, 1013, 1043, 1073, 1103, 1133, 1163,
+	1193, 1223, 1253, 1284, 1314, 1344, 1374, 1404,
+	1435, 1465, 1495, 1525, 1556, 1586, 1616, 1646,
+	1677, 1707, 1737, 1768, 1798, 1829, 1859, 1889,
+	1920, 1950, 1981, 2011, 2042, 2072, 2103, 2133,
+	2164, 2194, 2225, 2256, 2286, 2317, 2347, 2378,
+	2409, 2439, 2470, 2501, 2531, 2562, 2593, 2624,
+	2654, 2685, 2716, 2747, 2778, 2808, 2839, 2870,
+	2901, 2932, 2963, 2994, 3025, 3056, 3087, 3118,
+	3149, 3180, 3211, 3242, 3273, 3304, 3335, 3366,
+	3397, 3428, 3459, 3490, 3521, 3553, 3584, 3615,
+	3646, 3677, 3709, 3740, 3771, 3803, 3834, 3865,
+	61857, 61885, 61913, 61941, 61969, 61997, 62025, 62053,
+	62081, 62109, 62137, 62165, 62193, 62221, 62249, 62277,
+	62305, 62334, 62362, 62390, 62418, 62446, 62474, 62503,
+	62531, 62559, 62587, 62616, 62644, 62672, 62700, 62729,
+	62757, 62785, 62814, 62842, 62870, 62899, 62927, 62956,
+	62984, 63012, 63041, 63069, 63098, 63126, 63155, 63183,
+	63212, 63240, 63269, 63297, 63326, 63355, 63383, 63412,
+	63440, 63469, 63498, 63526, 63555, 63584, 63612, 63641,
+	63670, 63699, 63727, 63756, 63785, 63814, 63842, 63871,
+	63900, 63929, 63958, 63987, 64016, 64044, 64073, 64102,
+	64131, 64160, 64189, 64218, 64247, 64276, 64305, 64334,
+	64363, 64392, 64421, 64450, 64479, 64509, 64538, 64567,
+	64596, 64625, 64654, 64683, 64713, 64742, 64771, 64800,
+	64830, 64859, 64888, 64917, 64947, 64976, 65005, 65035,
+	65064, 65093, 65123, 65152, 65182, 65211, 65240, 65270,
+	65299, 65329, 65358, 65388, 65417, 65447, 65476, 65506
+};
+
+static inline int ADJUST_FREQ_2(int baseFreq, int noteN, int baseN, int pitchb, int pitchr)
+{
+	if (pitchb == 0) return ADJUST_FREQ(baseFreq, noteN, baseN);
+	else
+	{
+		int freq = (int)freqTable[noteN];
+		int i;
+		for (i = 0; i < pitchr; i ++)
+		{
+			freq *= (int)pitchBendTable[(u8)pitchb] | (pitchb >= 0 ? 0x10000 : 0);
+			freq >>= 16;
+		}
+		return (baseFreq * freq) / (int)freqTable[baseN];
+	}
+}
 
 // info about the sample
 typedef struct tagSwavInfo
@@ -52,7 +103,8 @@ u32 GetInstr(void* bnk, int id)
 
 typedef struct
 {
-	u8 vol, vel, expr, pan;
+	u8 vol, vel, expr, pan, pitchr;
+	s8 pitchb;
 } playinfo_t;
 
 typedef struct
@@ -109,9 +161,13 @@ int _Note(void* bnk, void* war, int instr, int note, int prio, playinfo_t* playi
 	wavinfo = GetWav(war, notedef->wavid);
 	chstat->reg.CR = SOUND_FORMAT(wavinfo->nWaveType) | SOUND_LOOP(wavinfo->bLoop) | SCHANNEL_ENABLE;
 	chstat->reg.SOURCE = (u32)GETSAMP(wavinfo);
-	chstat->reg.TIMER = SOUND_FREQ(ADJUST_FREQ((int)wavinfo->nSampleRate, note, notedef->tnote));
+	chstat->reg.TIMER = SOUND_FREQ(ADJUST_FREQ_2((int)wavinfo->nSampleRate, note, notedef->tnote, playinfo->pitchb, playinfo->pitchr));
 	chstat->reg.REPEAT_POINT = wavinfo->nLoopOffset;
 	chstat->reg.LENGTH = wavinfo->nNonLoopLen;
+
+	chstat->_freq = (int)wavinfo->nSampleRate;
+	chstat->_noteR = note;
+	chstat->_noteT = notedef->tnote;
 	
 	chstat->vol = playinfo->vol;
 	chstat->vel = playinfo->vel;
@@ -175,6 +231,8 @@ void PlaySeq(data_t* seq, data_t* bnk, data_t* war)
 		tracks[i].playinfo.vel = 64;
 		tracks[i].playinfo.expr = 127;
 		tracks[i].playinfo.pan = 64;
+		tracks[i].playinfo.pitchb = 0;
+		tracks[i].playinfo.pitchr = 2;
 		tracks[i].prio = 64;
 	}
 
@@ -185,6 +243,8 @@ void PlaySeq(data_t* seq, data_t* bnk, data_t* war)
 	tracks[0].playinfo.vel = 64;
 	tracks[0].playinfo.expr = 127;
 	tracks[0].playinfo.pan = 64;
+	tracks[0].playinfo.pitchb = 0;
+	tracks[0].playinfo.pitchr = 2;
 	tracks[0].prio = 64;
 	seq_bpm = 120;
 }
@@ -237,6 +297,17 @@ void seq_updatenotes(int track, playinfo_t* info)
 		chstat->vol = info->vol;
 		chstat->expr = info->expr;
 		chstat->pan = info->pan;
+	}
+}
+
+void seq_updatepitchbend(int track, playinfo_t* info)
+{
+	int i = 0;
+	for (i = 0; i < 16; i ++)
+	{
+		ADSR_stat_t* chstat = ADSR_ch + i;
+		if (chstat->track != track) continue;
+		chstat->reg.TIMER = SOUND_FREQ(ADJUST_FREQ_2(chstat->_freq, chstat->_noteR, chstat->_noteT, info->pitchb, info->pitchr));
 	}
 }
 
@@ -345,8 +416,6 @@ void track_tick(int n)
 				break;
 			}
 			case 0xC3: // TRANSPOSE
-			case 0xC4: // PITCH BEND
-			case 0xC5: // PITCH BEND RANGE
 			case 0xC8: // TIE
 			case 0xC9: // PORTAMENTO
 			case 0xCA: // MODULATION DEPTH
@@ -367,6 +436,26 @@ void track_tick(int n)
 				nocashMessage("DUMMY1");
 #endif
 				track->pos ++;
+				break;
+			}
+			case 0xC4: // PITCH BEND
+			{
+#ifdef LOG_SEQ
+				nocashMessage("PITCH BEND");
+#endif
+
+				track->playinfo.pitchb = (s8)SEQ_READ8(track->pos); track->pos ++;
+				seq_updatepitchbend(n, &track->playinfo);
+				break;
+			}
+			case 0xC5: // PITCH BEND RANGE
+			{
+#ifdef LOG_SEQ
+				nocashMessage("PITCH BEND RANGE");
+#endif
+
+				track->playinfo.pitchr = SEQ_READ8(track->pos); track->pos ++;
+				seq_updatepitchbend(n, &track->playinfo);
 				break;
 			}
 			case 0xC6: // PRIORITY

@@ -75,6 +75,8 @@ typedef struct
 	int prio;
 
 	int count,track;
+
+	int _freq; u8 _noteR, _noteT;
 	
 	sndreg_t reg;
 } ADSR_stat_t;
