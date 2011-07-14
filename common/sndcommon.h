@@ -58,9 +58,6 @@ static inline u32 fifoGetRetValue(int ch)
 
 enum { ADSR_NONE = 0, ADSR_START, ADSR_ATTACK, ADSR_DECAY, ADSR_SUSTAIN, ADSR_RELEASE };
 
-#define ADSR_MIXVOL(a,b) (((a)*(b))/127)
-#define ADSR_MIXVOL3(a,b,c) (((a)*(b)*(c))/16129)
-//#define ADSR_MIXVOL4(a,b,c,d) ((int)((u32)((a)*(b)*(c)*(d))/2048383))
 #define SCHANNEL_ACTIVE(ch) (SCHANNEL_CR(ch) & SCHANNEL_ENABLE)
 
 #define ADSR_K_AMP2VOL 723
@@ -84,6 +81,8 @@ typedef struct
 extern ADSR_stat_t ADSR_ch[16];
 
 volatile extern int seq_bpm;
+
+volatile extern int ADSR_mastervolume;
 
 void seq_tick();
 

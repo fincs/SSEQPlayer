@@ -16,6 +16,10 @@ How to build
 To do
 -----
 
-- There are weird problems with ADSR: the decay and release rates have to be multiplied by four for an unknown reason.
-- For some reason, sometimes there aren't enough free channels and notes are dropped, whereas in the official SSEQ player this doesn't happen for the files I've tested.
+- The channel allocation system sometimes drops notes where the official code doesn't.
 - Some SSEQ commands are not implemented yet (modulation, portamento, pitch sweep): please help!
+
+Thanks to:
+----------
+
+- kiwids, for making the SDAT spec and for providing valuable information regarding volume mixing.

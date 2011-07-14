@@ -12,7 +12,7 @@ void InstallSoundSys()
 	powerOn(POWER_SOUND);
 	writePowerManagement(PM_CONTROL_REG, ( readPowerManagement(PM_CONTROL_REG) & ~PM_SOUND_MUTE ) | PM_SOUND_AMP );
 	REG_SOUNDCNT = SOUND_ENABLE;
-	REG_MASTER_VOLUME = 64;
+	REG_MASTER_VOLUME = 127;
 
 	/* Install timer */
 	timerStart(1, ClockDivider_64, -2728, sound_timer);
@@ -47,6 +47,8 @@ static void sound_timer()
 
 ADSR_stat_t ADSR_ch[16];
 
+volatile int ADSR_mastervolume = 127;
+
 static void ADSR_tickchn(int);
 
 static void ADSR_tick()
@@ -54,13 +56,6 @@ static void ADSR_tick()
 	register int i;
 	for(i = 0; i < 16; i ++)
 		ADSR_tickchn(i);
-}
-
-static int ADSR_ampl2vol(int ampl_s)
-{
-	u32 ampl = (u32)(ampl_s + ADSR_THRESHOLD);
-	if (ampl >= ADSR_THRESHOLD) ampl = ADSR_THRESHOLD-1;
-	return ampl / ADSR_K_AMP2VOL;
 }
 
 static void ADSR_tickchn(int ch)
@@ -85,7 +80,6 @@ static void ADSR_tickchn(int ch)
 		case ADSR_SUSTAIN:
 			if (!SCHANNEL_ACTIVE(ch))
 			{
-				//REG.CR = 0;
 				SETSTATE(ADSR_NONE);
 				chstat->count = 0;
 				chstat->track = -1;
@@ -113,7 +107,7 @@ static void ADSR_tickchn(int ch)
 			AMPL -= RELRATE;
 			if (AMPL <= -ADSR_THRESHOLD)
 			{
-__adsr_release:
+//__adsr_release:
 				SETSTATE(ADSR_NONE);
 				//REG.CR = 0;
 				chstat->count = 0;
@@ -124,17 +118,26 @@ __adsr_release:
 			break;
 	}
 
-	int adsr_vol = ADSR_ampl2vol(AMPL);
-	if (adsr_vol == 0 && (chstat->state == ADSR_RELEASE || chstat->state == ADSR_SUSTAIN || chstat->state == ADSR_DECAY))
-	{
-#ifdef LOG_CUTOFF
-		nocashMessage("Cutoff prevention #2");
-#endif
-		goto __adsr_release;
-	}
+#define CONV_VOL(a) (CnvSust(a)>>7)
 
-	int t_vol = ADSR_MIXVOL3(VOL, VEL, EXPR);
-	SCHANNEL_VOL(ch) = ADSR_MIXVOL(t_vol, adsr_vol), SCHANNEL_PAN(ch) = (PAN + PAN2) >> 1;
+	int totalvol = CONV_VOL(ADSR_mastervolume);
+	totalvol += CONV_VOL(VOL);
+	totalvol += CONV_VOL(EXPR);
+	totalvol += CONV_VOL(VEL);
+	totalvol += AMPL >> 7;
+	if (totalvol < -723) totalvol = -723;
+	totalvol += 723;
+
+	u32 res = swiGetVolumeTable(totalvol);
+	if (totalvol < (-240 + 723)) res >>= 3;
+	else if (totalvol < (-120 + 723)) res >>= 2;
+	else if (totalvol < (-60 + 723)) res >>= 1;
+
+	int pan = (int)PAN + (int)PAN2 - 64;
+	if (pan < 0) pan = 0;
+	if (pan > 127) pan = 127;
+
+	SCHANNEL_VOL(ch) = res, SCHANNEL_PAN(ch) = pan;
 	SCHANNEL_TIMER(ch) = REG.TIMER;
 
 #undef AMPL
@@ -192,7 +195,6 @@ int CnvFall(int fall)
 	else                   return (0x1E00/(0x7E - fall)) & 0xFFFF;
 }
 
-/*
 int CnvSust(int sust)
 {
 	const u16 lut[] =
@@ -210,12 +212,6 @@ int CnvSust(int sust)
 	};
 	
 	return (sust == 0x7F) ? 0 : -((0x10000-(int)lut[sust]) << 7);
-}
-*/
-
-int CnvSust(int sust)
-{
-	return -(ADSR_K_AMP2VOL * (0x7F-sust)/0x7F) * 0x80;
 }
 
 void sndsysMsgHandler(int bytes, void* user_data)

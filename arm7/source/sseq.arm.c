@@ -123,6 +123,9 @@ int ds_freechn2(int prio)
 		if (!SCHANNEL_ACTIVE(i) && ADSR_ch[i].state != ADSR_START)
 			return i;
 	for(i = 0; i < 16; i ++)
+		if (ADSR_ch[i].ampl < (-75*128) && ADSR_ch[i].state == ADSR_RELEASE)
+			return i;
+	for(i = 0; i < 16; i ++)
 		if (ADSR_ch[i].prio < prio)
 			return i;
 	return -1;
@@ -175,9 +178,9 @@ int _Note(void* bnk, void* war, int instr, int note, int prio, playinfo_t* playi
 	chstat->pan = playinfo->pan;
 	chstat->pan2 = notedef->pan;
 	chstat->a = CnvAttk(notedef->a);
-	chstat->d = CnvFall(notedef->d)<<2; // HACK: please help
+	chstat->d = CnvFall(notedef->d);
 	chstat->s = CnvSust(notedef->s);
-	chstat->r = CnvFall(notedef->r)<<2; // HACK: please help
+	chstat->r = CnvFall(notedef->r);
 	chstat->prio = prio;
 	chstat->count = duration;
 	chstat->track = track;
@@ -412,7 +415,7 @@ void track_tick(int n)
 #ifdef LOG_SEQ
 				nocashMessage("MASTER VOL");
 #endif
-				REG_MASTER_VOLUME = SEQ_READ8(track->pos); track->pos ++;
+				ADSR_mastervolume = SEQ_READ8(track->pos); track->pos ++;
 				break;
 			}
 			case 0xC3: // TRANSPOSE
