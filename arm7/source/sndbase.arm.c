@@ -119,6 +119,7 @@ static void ADSR_tickchn(int ch)
 	}
 
 #define CONV_VOL(a) (CnvSust(a)>>7)
+#define SOUND_VOLDIV(n) ((n) << 8)
 
 	int totalvol = CONV_VOL(ADSR_mastervolume);
 	totalvol += CONV_VOL(VOL);
@@ -129,15 +130,18 @@ static void ADSR_tickchn(int ch)
 	totalvol += 723;
 
 	u32 res = swiGetVolumeTable(totalvol);
-	if (totalvol < (-240 + 723)) res >>= 3;
-	else if (totalvol < (-120 + 723)) res >>= 2;
-	else if (totalvol < (-60 + 723)) res >>= 1;
 
 	int pan = (int)PAN + (int)PAN2 - 64;
 	if (pan < 0) pan = 0;
 	if (pan > 127) pan = 127;
 
-	SCHANNEL_VOL(ch) = res, SCHANNEL_PAN(ch) = pan;
+	u32 cr = SCHANNEL_CR(ch) &~ (SOUND_VOL(0x7F) | SOUND_VOLDIV(3) | SOUND_PAN(0x7F));
+	cr |= SOUND_VOL(res) | SOUND_PAN(pan);
+	if (totalvol < (-240 + 723)) cr |= SOUND_VOLDIV(3);
+	else if (totalvol < (-120 + 723)) cr |= SOUND_VOLDIV(2);
+	else if (totalvol < (-60 + 723)) cr |= SOUND_VOLDIV(1);
+	
+	SCHANNEL_CR(ch) = cr;
 	SCHANNEL_TIMER(ch) = REG.TIMER;
 
 #undef AMPL
