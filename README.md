@@ -16,7 +16,7 @@ How to build
 To do
 -----
 
-- The channel allocation system sometimes drops notes where the official code doesn't.
+- Note dropping bug appears to be gone... I hope.
 - Some SSEQ commands are not implemented yet (modulation, portamento, pitch sweep): please help!
 
 Thanks to:

@@ -123,7 +123,7 @@ int ds_freechn2(int prio)
 		if (!SCHANNEL_ACTIVE(i) && ADSR_ch[i].state != ADSR_START)
 			return i;
 	for(i = 0; i < 16; i ++)
-		if (ADSR_ch[i].ampl < (-75*128) && ADSR_ch[i].state == ADSR_RELEASE)
+		if (ADSR_ch[i].state == ADSR_RELEASE)
 			return i;
 	for(i = 0; i < 16; i ++)
 		if (ADSR_ch[i].prio < prio)
