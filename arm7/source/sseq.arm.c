@@ -60,14 +60,14 @@ static inline int ADJUST_FREQ_2(int baseFreq, int noteN, int baseN, int pitchb, 
 	if (pitchb == 0) return ADJUST_FREQ(baseFreq, noteN, baseN);
 	else
 	{
-		int freq = (int)freqTable[noteN];
+		s64 freq = ADJUST_FREQ(baseFreq, noteN, baseN);
 		int i;
 		for (i = 0; i < pitchr; i ++)
 		{
-			freq *= (int)pitchBendTable[(u8)pitchb] | (pitchb >= 0 ? 0x10000 : 0);
+			freq *= (s64)pitchBendTable[(u8)pitchb] | (pitchb >= 0 ? 0x10000 : 0);
 			freq >>= 16;
 		}
-		return (baseFreq * freq) / (int)freqTable[baseN];
+		return (int)freq;
 	}
 }
 
