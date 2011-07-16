@@ -122,9 +122,11 @@ int ds_freechn2(int prio)
 	for(i = 0; i < 16; i ++)
 		if (!SCHANNEL_ACTIVE(i) && ADSR_ch[i].state != ADSR_START)
 			return i;
+	int j = -1, ampl = 1;
 	for(i = 0; i < 16; i ++)
-		if (ADSR_ch[i].state == ADSR_RELEASE)
-			return i;
+		if (ADSR_ch[i].state == ADSR_RELEASE && ADSR_ch[i].ampl < ampl)
+			ampl = ADSR_ch[i].ampl, j = i;
+	if (j != -1) return j;
 	for(i = 0; i < 16; i ++)
 		if (ADSR_ch[i].prio < prio)
 			return i;
