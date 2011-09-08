@@ -40,7 +40,7 @@ typedef struct
 		{
 			data_t seq;
 			data_t bnk;
-			data_t war;
+			data_t war[4];
 		};
 	};
 } sndsysMsg;
@@ -105,7 +105,7 @@ int CnvSust(int sust);
 int PlaySmp(sndreg_t* smp, int a, int d, int s, int r, int vol, int vel, int pan);
 void StopSmp(int handle);
 */
-void PlaySeq(const char* seqFile, const char* bnkFile, const char* warFile);
+void PlaySeq(const char*, const char*, const char*, const char*, const char*, const char*);
 void StopSeq();
 
 #endif

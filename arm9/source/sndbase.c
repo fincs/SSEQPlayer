@@ -48,6 +48,7 @@ void StopSmp(int handle)
 static bool LoadFile(data_t* pData, const char* fname)
 {
 	FILE* f = fopen(fname, "rb");
+	if (!f) return false;
 	fseek(f, 0, SEEK_END);
 	pData->size = ftell(f);
 	rewind(f);
@@ -58,14 +59,17 @@ static bool LoadFile(data_t* pData, const char* fname)
 	return true;
 }
 
-void PlaySeq(const char* seqFile, const char* bnkFile, const char* warFile)
+void PlaySeq(const char* seqFile, const char* bnkFile, const char* war1, const char* war2, const char* war3, const char* war4)
 {
 	sndsysMsg msg;
 	msg.msg = SNDSYS_PLAYSEQ;
 
 	LoadFile(&msg.seq, seqFile);
 	LoadFile(&msg.bnk, bnkFile);
-	LoadFile(&msg.war, warFile);
+	LoadFile(msg.war + 0, war1);
+	LoadFile(msg.war + 1, war2);
+	LoadFile(msg.war + 2, war3);
+	LoadFile(msg.war + 3, war4);
 
 	fifoSendDatamsg(FIFO_SNDSYS, sizeof(msg), (u8*) &msg);
 }

@@ -148,10 +148,11 @@ typedef struct
 
 int ntracks = 0;
 u8* seqData = NULL;
-void* seqBnk = NULL, *seqWar = NULL;
+void* seqBnk = NULL;
+void* seqWar[4] = {NULL, NULL, NULL, NULL};
 trackstat_t tracks[16];
 
-int _Note(void* bnk, void* war, int instr, int note, int prio, playinfo_t* playinfo, int duration, int track)
+int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* playinfo, int duration, int track)
 {
 	int ch = ds_freechn2(prio);
 	if (ch < 0) return -1;
@@ -181,7 +182,7 @@ int _Note(void* bnk, void* war, int instr, int note, int prio, playinfo_t* playi
 		notedef = (notedef_t*) (insdata + 8 + 2 + reg*(2+sizeof(notedef_t)));
 	}else return -1;
 
-	wavinfo = GetWav(war, notedef->wavid);
+	wavinfo = GetWav(war[notedef->warid], notedef->wavid);
 	chstat->reg.CR = SOUND_FORMAT(wavinfo->nWaveType) | SOUND_LOOP(wavinfo->bLoop) | SCHANNEL_ENABLE;
 	chstat->reg.SOURCE = (u32)GETSAMP(wavinfo);
 	chstat->reg.TIMER = SOUND_FREQ(ADJUST_FREQ_2((int)wavinfo->nSampleRate, note, notedef->tnote, playinfo->pitchb, playinfo->pitchr));
@@ -223,7 +224,10 @@ void _NoteStop(int n)
 void PlaySeq(data_t* seq, data_t* bnk, data_t* war)
 {
 	seqBnk = bnk->data;
-	seqWar = war->data;
+	seqWar[0] = war[0].data;
+	seqWar[1] = war[1].data;
+	seqWar[2] = war[2].data;
+	seqWar[3] = war[3].data;
 
 	// Load sequence data
 	seqData = (u8*)seq->data + ((u32*)seq->data)[6];

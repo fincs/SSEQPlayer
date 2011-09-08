@@ -19,7 +19,7 @@ int main()
 	iprintf("\tgithub.com/fincs");
 
 	// Change this line!
-	PlaySeq("YourFile.sseq", "YourFile.sbnk", "YourFile.swar");
+	PlaySeq("YourFile.sseq", "YourFile.sbnk", "YourFile.swar", "YourFile2.swar", "YourFile3.swar", "YourFile4.swar");
 
 	for(;;)
 	{
