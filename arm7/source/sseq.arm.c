@@ -133,6 +133,40 @@ int ds_freechn2(int prio)
 	return -1;
 }
 
+int ds_freepsgtonechn(int prio)
+{
+	register int i;
+	for(i = 8; i < 14; i ++)
+		if (!SCHANNEL_ACTIVE(i) && ADSR_ch[i].state != ADSR_START)
+			return i;
+	int j = -1, ampl = 1;
+	for(i = 8; i < 14; i ++)
+		if (ADSR_ch[i].state == ADSR_RELEASE && ADSR_ch[i].ampl < ampl)
+			ampl = ADSR_ch[i].ampl, j = i;
+	if (j != -1) return j;
+	for(i = 8; i < 14; i ++)
+		if (ADSR_ch[i].prio < prio)
+			return i;
+	return -1;
+}
+
+int ds_freepsgnoisechn(int prio)
+{
+	register int i;
+	for(i = 14; i < 16; i ++)
+		if (!SCHANNEL_ACTIVE(i) && ADSR_ch[i].state != ADSR_START)
+			return i;
+	int j = -1, ampl = 1;
+	for(i = 14; i < 16; i ++)
+		if (ADSR_ch[i].state == ADSR_RELEASE && ADSR_ch[i].ampl < ampl)
+			ampl = ADSR_ch[i].ampl, j = i;
+	if (j != -1) return j;
+	for(i = 14; i < 16; i ++)
+		if (ADSR_ch[i].prio < prio)
+			return i;
+	return -1;
+}
+
 typedef struct
 {
 	int count;
@@ -154,6 +188,7 @@ trackstat_t tracks[16];
 
 int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* playinfo, int duration, int track)
 {
+	int isPsg = 0;
 	int ch = ds_freechn2(prio);
 	if (ch < 0) return -1;
 
@@ -165,7 +200,34 @@ int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* play
 	SWAVINFO* wavinfo = NULL;
 	int fRecord = INST_TYPE(inst);
 	if (fRecord == 0) return -1;
-	else if (fRecord < 16) notedef = (notedef_t*) insdata;
+	else if (fRecord == 1) notedef = (notedef_t*) insdata;
+	else if (fRecord < 4)
+	{
+		// PSG
+		// fRecord = 2 -> PSG tone, notedef->wavid -> PSG duty
+		// fRecord = 3 -> PSG noise
+		isPsg = 1;
+		notedef = (notedef_t*) insdata;
+		int basefreq = freqTable[notedef->tnote-1]<<3; // It needs a -1 for some reason (??)
+		if (fRecord == 3)
+		{
+			ch = ds_freepsgnoisechn(prio);
+			if (ch < 0) return -1;
+			chstat = ADSR_ch + ch;
+			chstat->reg.CR = SOUND_FORMAT_PSG | SCHANNEL_ENABLE;
+		}else
+		{
+#define SOUND_DUTY(n) ((n)<<24)
+			ch = ds_freepsgtonechn(prio);
+			if (ch < 0) return -1;
+			chstat = ADSR_ch + ch;
+			chstat->reg.CR = SOUND_FORMAT_PSG | SCHANNEL_ENABLE | SOUND_DUTY(notedef->wavid);
+		}
+		chstat->reg.TIMER = SOUND_FREQ(ADJUST_FREQ_2(basefreq, note, notedef->tnote, playinfo->pitchb, playinfo->pitchr));
+		chstat->_freq = basefreq;
+		chstat->_noteR = note;
+		chstat->_noteT = notedef->tnote;
+	}
 	else if (fRecord == 16)
 	{
 		if ((insdata[0] <= note) && (note <= insdata[1]))
@@ -182,16 +244,19 @@ int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* play
 		notedef = (notedef_t*) (insdata + 8 + 2 + reg*(2+sizeof(notedef_t)));
 	}else return -1;
 
-	wavinfo = GetWav(war[notedef->warid], notedef->wavid);
-	chstat->reg.CR = SOUND_FORMAT(wavinfo->nWaveType) | SOUND_LOOP(wavinfo->bLoop) | SCHANNEL_ENABLE;
-	chstat->reg.SOURCE = (u32)GETSAMP(wavinfo);
-	chstat->reg.TIMER = SOUND_FREQ(ADJUST_FREQ_2((int)wavinfo->nSampleRate, note, notedef->tnote, playinfo->pitchb, playinfo->pitchr));
-	chstat->reg.REPEAT_POINT = wavinfo->nLoopOffset;
-	chstat->reg.LENGTH = wavinfo->nNonLoopLen;
+	if (!isPsg)
+	{
+		wavinfo = GetWav(war[notedef->warid], notedef->wavid);
+		chstat->reg.CR = SOUND_FORMAT(wavinfo->nWaveType) | SOUND_LOOP(wavinfo->bLoop) | SCHANNEL_ENABLE;
+		chstat->reg.SOURCE = (u32)GETSAMP(wavinfo);
+		chstat->reg.TIMER = SOUND_FREQ(ADJUST_FREQ_2((int)wavinfo->nSampleRate, note, notedef->tnote, playinfo->pitchb, playinfo->pitchr));
+		chstat->reg.REPEAT_POINT = wavinfo->nLoopOffset;
+		chstat->reg.LENGTH = wavinfo->nNonLoopLen;
 
-	chstat->_freq = (int)wavinfo->nSampleRate;
-	chstat->_noteR = note;
-	chstat->_noteT = notedef->tnote;
+		chstat->_freq = (int)wavinfo->nSampleRate;
+		chstat->_noteR = note;
+		chstat->_noteT = notedef->tnote;
+	}
 
 	trackstat_t* pTrack = tracks + track;
 	
