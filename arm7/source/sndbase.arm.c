@@ -126,8 +126,8 @@ static void ADSR_tickchn(int ch)
 	totalvol += CONV_VOL(EXPR);
 	totalvol += CONV_VOL(VEL);
 	totalvol += AMPL >> 7;
-	if (totalvol < -723) totalvol = -723;
 	totalvol += 723;
+	if (totalvol < 0) totalvol = 0;
 
 	u32 res = swiGetVolumeTable(totalvol);
 
