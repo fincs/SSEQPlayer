@@ -6,7 +6,7 @@ void InstallSoundSys();
 
 enum
 {
-	/*SNDSYS_PLAY = 1, SNDSYS_STOP,*/ SNDSYS_PLAYSEQ
+	/*SNDSYS_PLAY = 1, SNDSYS_STOP,*/ SNDSYS_PLAYSEQ, SNDSYS_STOPSEQ
 };
 
 typedef struct
@@ -87,6 +87,7 @@ volatile extern int ADSR_mastervolume;
 void seq_tick();
 
 void PlaySeq(data_t* seq, data_t* bnk, data_t* war);
+void StopSeq();
 
 int ds_freechn();
 int ds_freepsg();
@@ -105,5 +106,6 @@ int PlaySmp(sndreg_t* smp, int a, int d, int s, int r, int vol, int vel, int pan
 void StopSmp(int handle);
 */
 void PlaySeq(const char* seqFile, const char* bnkFile, const char* warFile);
+void StopSeq();
 
 #endif

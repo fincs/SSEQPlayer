@@ -254,6 +254,14 @@ void PlaySeq(data_t* seq, data_t* bnk, data_t* war)
 	seq_bpm = 120;
 }
 
+void StopSeq()
+{
+	ntracks = 0, seq_bpm = 0;
+	int i;
+	for (i = 0; i < 16; i ++)
+		_NoteStop(i);
+}
+
 volatile int seq_bpm = 0;
 
 void track_tick(int n);

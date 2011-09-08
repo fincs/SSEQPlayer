@@ -263,5 +263,11 @@ _play_ret:
 			PlaySeq(&msg.seq, &msg.bnk, &msg.war);
 			return;
 		}
+
+		case SNDSYS_STOPSEQ:
+		{
+			StopSeq();
+			return;
+		}
 	}
 }

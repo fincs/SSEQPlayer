@@ -69,3 +69,10 @@ void PlaySeq(const char* seqFile, const char* bnkFile, const char* warFile)
 
 	fifoSendDatamsg(FIFO_SNDSYS, sizeof(msg), (u8*) &msg);
 }
+
+void StopSeq()
+{
+	sndsysMsg msg;
+	msg.msg = SNDSYS_STOPSEQ;
+	fifoSendDatamsg(FIFO_SNDSYS, sizeof(msg), (u8*) &msg);
+}
