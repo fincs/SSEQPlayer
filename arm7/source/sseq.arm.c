@@ -133,6 +133,24 @@ int ds_freechn2(int prio)
 	return -1;
 }
 
+typedef struct
+{
+	int count;
+	int pos;
+	int ret;
+	int prio;
+	u16 patch;
+	u16 waitmode;
+	playinfo_t playinfo;
+	int a,d,s,r;
+	int loopcount,looppos;
+} trackstat_t;
+
+int ntracks = 0;
+u8* seqData = NULL;
+void* seqBnk = NULL, *seqWar = NULL;
+trackstat_t tracks[16];
+
 int _Note(void* bnk, void* war, int instr, int note, int prio, playinfo_t* playinfo, int duration, int track)
 {
 	int ch = ds_freechn2(prio);
@@ -173,16 +191,18 @@ int _Note(void* bnk, void* war, int instr, int note, int prio, playinfo_t* playi
 	chstat->_freq = (int)wavinfo->nSampleRate;
 	chstat->_noteR = note;
 	chstat->_noteT = notedef->tnote;
+
+	trackstat_t* pTrack = tracks + track;
 	
 	chstat->vol = playinfo->vol;
 	chstat->vel = playinfo->vel;
 	chstat->expr = playinfo->expr;
 	chstat->pan = playinfo->pan;
 	chstat->pan2 = notedef->pan;
-	chstat->a = CnvAttk(notedef->a);
-	chstat->d = CnvFall(notedef->d);
-	chstat->s = CnvSust(notedef->s);
-	chstat->r = CnvFall(notedef->r);
+	chstat->a = (pTrack->a == -1) ? CnvAttk(notedef->a) : pTrack->a;
+	chstat->d = (pTrack->d == -1) ? CnvFall(notedef->d) : pTrack->d;
+	chstat->s = (pTrack->s == -1) ? CnvSust(notedef->s) : pTrack->s;
+	chstat->r = (pTrack->r == -1) ? CnvFall(notedef->r) : pTrack->r;
 	chstat->prio = prio;
 	chstat->count = duration;
 	chstat->track = track;
@@ -195,22 +215,6 @@ void _NoteStop(int n)
 {
 	ADSR_ch[n].state = ADSR_RELEASE;
 }
-
-typedef struct
-{
-	int count;
-	int pos;
-	int ret;
-	int prio;
-	u16 patch;
-	u16 waitmode;
-	playinfo_t playinfo;
-} trackstat_t;
-
-int ntracks = 0;
-u8* seqData = NULL;
-void* seqBnk = NULL, *seqWar = NULL;
-trackstat_t tracks[16];
 
 #define SEQ_READ8(pos) seqData[(pos)]
 #define SEQ_READ16(pos) ((u16)seqData[(pos)] | ((u16)seqData[(pos)+1] << 8))
@@ -239,6 +243,7 @@ void PlaySeq(data_t* seq, data_t* bnk, data_t* war)
 		tracks[i].playinfo.pitchb = 0;
 		tracks[i].playinfo.pitchr = 2;
 		tracks[i].prio = 64;
+		tracks[i].a = -1; tracks[i].d = -1; tracks[i].s = -1; tracks[i].r = -1;
 	}
 
 	// Prepare first track
@@ -251,6 +256,7 @@ void PlaySeq(data_t* seq, data_t* bnk, data_t* war)
 	tracks[0].playinfo.pitchb = 0;
 	tracks[0].playinfo.pitchr = 2;
 	tracks[0].prio = 64;
+	tracks[0].a = -1; tracks[0].d = -1; tracks[0].s = -1; tracks[0].r = -1;
 	seq_bpm = 120;
 }
 
@@ -437,11 +443,6 @@ void track_tick(int n)
 			case 0xCD: // MODULATION RANGE
 			case 0xCE: // PORTAMENTO ON/OFF
 			case 0xCF: // PORTAMENTO TIME
-			case 0xD0: // ATTACK
-			case 0xD1: // DECAY
-			case 0xD2: // SUSTAIN
-			case 0xD3: // RELEASE
-			case 0xD4: // LOOP START
 			case 0xD6: // PRINT VAR
 			{
 				// TODO
@@ -487,12 +488,59 @@ void track_tick(int n)
 				track->waitmode = SEQ_READ8(track->pos); track->pos ++;
 				break;
 			}
+			case 0xD0: // ATTACK
+			{
+#ifdef LOG_SEQ
+				nocashMessage("ATTACK");
+#endif
+				track->a = CnvAttk(SEQ_READ8(track->pos)); track->pos ++;
+				break;
+			}
+			case 0xD1: // DECAY
+			{
+#ifdef LOG_SEQ
+				nocashMessage("DECAY");
+#endif
+				track->d = CnvFall(SEQ_READ8(track->pos)); track->pos ++;
+				break;
+			}
+			case 0xD2: // SUSTAIN
+			{
+#ifdef LOG_SEQ
+				nocashMessage("SUSTAIN");
+#endif
+				track->s = CnvSust(SEQ_READ8(track->pos)); track->pos ++;
+				break;
+			}
+			case 0xD3: // RELEASE
+			{
+#ifdef LOG_SEQ
+				nocashMessage("RELEASE");
+#endif
+				track->r = CnvFall(SEQ_READ8(track->pos)); track->pos ++;
+				break;
+			}
+			case 0xD4: // LOOP START
+			{
+#ifdef LOG_SEQ
+				nocashMessage("LOOP START");
+#endif
+				track->loopcount = SEQ_READ8(track->pos); track->pos ++;
+				track->looppos = track->pos;
+				if(!track->loopcount)
+					track->loopcount = -1;
+				break;
+			}
 			case 0xFC: // LOOP END
 			{
-				// TODO
 #ifdef LOG_SEQ
-				nocashMessage("DUMMY0");
+				nocashMessage("LOOP END");
 #endif
+				int shouldRepeat = 1;
+				if (track->loopcount > 0)
+					shouldRepeat = --track->loopcount;
+				if (shouldRepeat)
+					track->pos = track->looppos;
 				break;
 			}
 			case 0xD5: // EXPR
