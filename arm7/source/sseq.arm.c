@@ -466,6 +466,45 @@ void track_tick(int n)
 				track->pos = dest;
 				break;
 			}
+			case 0xA0: // RANDOM
+			{
+				// TODO
+				// [statusByte] [min16] [max16]
+				track->pos += 5;
+				break;
+			}
+			case 0xA1: // WTF #1
+			{
+				// TODO
+				int t = SEQ_READ8(track->pos); track->pos ++;
+				if (t >= 0xB0 && t <= 0xBD) track->pos ++;
+				track->pos ++;
+				break;
+			}
+			case 0xA2: // IF
+			{
+				// TODO
+				break;
+			}
+			case 0xB0:
+			case 0xB1:
+			case 0xB2:
+			case 0xB3:
+			case 0xB4:
+			case 0xB5:
+			case 0xB6:
+			case 0xB7:
+			case 0xB8:
+			case 0xB9:
+			case 0xBA:
+			case 0xBB:
+			case 0xBC:
+			case 0xBD:
+			{
+				// TODO
+				track->pos += 3;
+				break;
+			}
 			case 0xFD: // RET
 			{
 #ifdef LOG_SEQ
