@@ -89,7 +89,7 @@ static void ADSR_tickchn(int ch)
 		case ADSR_START:
 			SCHANNEL_CR(ch) = 0;
 			SCHANNEL_SOURCE(ch) = REG.SOURCE;
-			SCHANNEL_TIMER(ch) = REG.TIMER;
+			SCHANNEL_TIMER(ch) = -REG.TIMER;
 			SCHANNEL_REPEAT_POINT(ch) = REG.REPEAT_POINT;
 			SCHANNEL_LENGTH(ch) = REG.LENGTH;
 			SCHANNEL_CR(ch) = REG.CR;
@@ -142,7 +142,7 @@ static void ADSR_tickchn(int ch)
 	else if (totalvol < (-60 + 723)) cr |= SOUND_VOLDIV(1);
 	
 	SCHANNEL_CR(ch) = cr;
-	SCHANNEL_TIMER(ch) = REG.TIMER;
+	SCHANNEL_TIMER(ch) = -REG.TIMER;
 
 #undef AMPL
 #undef VOL

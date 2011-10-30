@@ -4,71 +4,46 @@
 #include <string.h>
 #include <sndcommon.h>
 
-#define ADJUST_FREQ(baseFreq,noteN,baseN) (((int)(baseFreq)*(int)freqTable[noteN])/(int)freqTable[baseN])
-
-static const u16 freqTable[128] = {
-	8, 9, 9, 10, 11, 11, 12, 13, 14, 15, 15,
-	16, 17, 18, 19, 21, 22, 23, 24, 26, 28, 29, 31,
-	33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 62,
-	65, 69, 73, 78, 83, 87, 92, 98, 104, 110, 117, 123,
-	131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247,
-	262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494,
-	523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988,
-	1047, 1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976,
-	2093, 2217, 2349, 2489, 2637, 2794, 2969, 3136, 3322, 3520, 3729, 3951,
-	4185, 4435, 4599, 4978, 5274, 5588, 5920, 6272, 6645, 7040, 7459, 7902,
-	8372, 8870, 9397, 9956, 10548, 11175, 11840, 12544
-};
-
-static const u16 pitchBendTable[256] = {
-	0, 29, 59, 88, 118, 148, 177, 207,
-	237, 266, 296, 326, 355, 385, 415, 445,
-	474, 504, 534, 564, 594, 624, 653, 683,
-	713, 743, 773, 803, 833, 863, 893, 923,
-	953, 983, 1013, 1043, 1073, 1103, 1133, 1163,
-	1193, 1223, 1253, 1284, 1314, 1344, 1374, 1404,
-	1435, 1465, 1495, 1525, 1556, 1586, 1616, 1646,
-	1677, 1707, 1737, 1768, 1798, 1829, 1859, 1889,
-	1920, 1950, 1981, 2011, 2042, 2072, 2103, 2133,
-	2164, 2194, 2225, 2256, 2286, 2317, 2347, 2378,
-	2409, 2439, 2470, 2501, 2531, 2562, 2593, 2624,
-	2654, 2685, 2716, 2747, 2778, 2808, 2839, 2870,
-	2901, 2932, 2963, 2994, 3025, 3056, 3087, 3118,
-	3149, 3180, 3211, 3242, 3273, 3304, 3335, 3366,
-	3397, 3428, 3459, 3490, 3521, 3553, 3584, 3615,
-	3646, 3677, 3709, 3740, 3771, 3803, 3834, 3865,
-	61857, 61885, 61913, 61941, 61969, 61997, 62025, 62053,
-	62081, 62109, 62137, 62165, 62193, 62221, 62249, 62277,
-	62305, 62334, 62362, 62390, 62418, 62446, 62474, 62503,
-	62531, 62559, 62587, 62616, 62644, 62672, 62700, 62729,
-	62757, 62785, 62814, 62842, 62870, 62899, 62927, 62956,
-	62984, 63012, 63041, 63069, 63098, 63126, 63155, 63183,
-	63212, 63240, 63269, 63297, 63326, 63355, 63383, 63412,
-	63440, 63469, 63498, 63526, 63555, 63584, 63612, 63641,
-	63670, 63699, 63727, 63756, 63785, 63814, 63842, 63871,
-	63900, 63929, 63958, 63987, 64016, 64044, 64073, 64102,
-	64131, 64160, 64189, 64218, 64247, 64276, 64305, 64334,
-	64363, 64392, 64421, 64450, 64479, 64509, 64538, 64567,
-	64596, 64625, 64654, 64683, 64713, 64742, 64771, 64800,
-	64830, 64859, 64888, 64917, 64947, 64976, 65005, 65035,
-	65064, 65093, 65123, 65152, 65182, 65211, 65240, 65270,
-	65299, 65329, 65358, 65388, 65417, 65447, 65476, 65506
-};
-
-static inline int ADJUST_FREQ_2(int baseFreq, int noteN, int baseN, int pitchb, int pitchr)
+// This function was obtained through disassembly of Ninty's sound driver
+u16 AdjustFreq(u16 basefreq, int pitch)
 {
-	if (pitchb == 0) return ADJUST_FREQ(baseFreq, noteN, baseN);
-	else
+	u64 freq;
+	int shift = 0;
+	pitch = -pitch;
+	while (pitch < 0)
 	{
-		s64 freq = ADJUST_FREQ(baseFreq, noteN, baseN);
-		int i;
-		for (i = 0; i < pitchr; i ++)
-		{
-			freq *= (s64)pitchBendTable[(u8)pitchb] | (pitchb >= 0 ? 0x10000 : 0);
-			freq >>= 16;
-		}
-		return (int)freq;
+		shift --;
+		pitch += 0x300;
 	}
+	while (pitch >= 0x300)
+	{
+		shift ++;
+		pitch -= 0x300;
+	}
+	freq = (u64)basefreq * ((u32)swiGetPitchTable(pitch) + 0x10000);
+	shift -= 16;
+	if (shift <= 0)
+		freq >>= -shift;
+	else if (shift < 32)
+	{
+		if (freq & ((~0ULL) << (32-shift))) return 0xFFFF;
+		freq <<= shift;
+	}else
+		return 0x10;
+	if (freq < 0x10) return 0x10;
+	if (freq > 0xFFFF) return 0xFFFF;
+	return (u16)freq;
+}
+
+static inline u16 ADJUST_FREQ(u16 basefreq, int noteN, int baseN)
+{
+	return AdjustFreq(basefreq, ((noteN - baseN) * 64));
+}
+
+static inline u16 ADJUST_PITCH_BEND(u16 basefreq, int pitchb, int pitchr)
+{
+	if (!pitchb) return basefreq;
+	return AdjustFreq(basefreq, (pitchb*pitchr) >> 1);
 }
 
 // info about the sample
@@ -208,7 +183,6 @@ int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* play
 		// fRecord = 3 -> PSG noise
 		isPsg = 1;
 		notedef = (notedef_t*) insdata;
-		int basefreq = freqTable[notedef->tnote-1]<<3; // It needs a -1 for some reason (??)
 		if (fRecord == 3)
 		{
 			ch = ds_freepsgnoisechn(prio);
@@ -223,10 +197,9 @@ int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* play
 			chstat = ADSR_ch + ch;
 			chstat->reg.CR = SOUND_FORMAT_PSG | SCHANNEL_ENABLE | SOUND_DUTY(notedef->wavid);
 		}
-		chstat->reg.TIMER = SOUND_FREQ(ADJUST_FREQ_2(basefreq, note, notedef->tnote, playinfo->pitchb, playinfo->pitchr));
-		chstat->_freq = basefreq;
-		chstat->_noteR = note;
-		chstat->_noteT = notedef->tnote;
+		// TODO: figure out what notedef->tnote means for PSG channels
+		chstat->_freq = ADJUST_FREQ(-SOUND_FREQ(440*8), note, 69);
+		chstat->reg.TIMER = ADJUST_PITCH_BEND(chstat->_freq, playinfo->pitchb, playinfo->pitchr);
 	}
 	else if (fRecord == 16)
 	{
@@ -249,13 +222,10 @@ int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* play
 		wavinfo = GetWav(war[notedef->warid], notedef->wavid);
 		chstat->reg.CR = SOUND_FORMAT(wavinfo->nWaveType) | SOUND_LOOP(wavinfo->bLoop) | SCHANNEL_ENABLE;
 		chstat->reg.SOURCE = (u32)GETSAMP(wavinfo);
-		chstat->reg.TIMER = SOUND_FREQ(ADJUST_FREQ_2((int)wavinfo->nSampleRate, note, notedef->tnote, playinfo->pitchb, playinfo->pitchr));
+		chstat->_freq = ADJUST_FREQ(wavinfo->nTime, note, notedef->tnote);
+		chstat->reg.TIMER = ADJUST_PITCH_BEND(chstat->_freq, playinfo->pitchb, playinfo->pitchr);
 		chstat->reg.REPEAT_POINT = wavinfo->nLoopOffset;
 		chstat->reg.LENGTH = wavinfo->nNonLoopLen;
-
-		chstat->_freq = (int)wavinfo->nSampleRate;
-		chstat->_noteR = note;
-		chstat->_noteT = notedef->tnote;
 	}
 
 	trackstat_t* pTrack = tracks + track;
@@ -393,7 +363,7 @@ void seq_updatepitchbend(int track, playinfo_t* info)
 	{
 		ADSR_stat_t* chstat = ADSR_ch + i;
 		if (chstat->track != track) continue;
-		chstat->reg.TIMER = SOUND_FREQ(ADJUST_FREQ_2(chstat->_freq, chstat->_noteR, chstat->_noteT, info->pitchb, info->pitchr));
+		chstat->reg.TIMER = ADJUST_PITCH_BEND(chstat->_freq, info->pitchb, info->pitchr);
 	}
 }
 

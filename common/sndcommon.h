@@ -73,7 +73,7 @@ typedef struct
 
 	int count,track;
 
-	int _freq; u8 _noteR, _noteT;
+	u16 _freq;
 	
 	sndreg_t reg;
 } ADSR_stat_t;
@@ -96,6 +96,7 @@ int ds_freenoise();
 int CnvAttk(int attk);
 int CnvFall(int fall);
 int CnvSust(int sust);
+u16 AdjustFreq(u16 basefreq, int pitch);
 
 #endif
 
