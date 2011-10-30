@@ -80,6 +80,8 @@ typedef struct
 {
 	u8 vol, vel, expr, pan, pitchr;
 	s8 pitchb;
+	u8 modType, modSpeed, modDepth, modRange;
+	u16 modDelay;
 } playinfo_t;
 
 typedef struct
@@ -235,6 +237,13 @@ int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* play
 	chstat->expr = playinfo->expr;
 	chstat->pan = playinfo->pan;
 	chstat->pan2 = notedef->pan;
+	chstat->modType = playinfo->modType;
+	chstat->modDepth = playinfo->modDepth;
+	chstat->modRange = playinfo->modRange;
+	chstat->modSpeed = playinfo->modSpeed;
+	chstat->modDelay = playinfo->modDelay;
+	chstat->modDelayCnt = 0;
+	chstat->modCounter = 0;
 	chstat->a = (pTrack->a == -1) ? CnvAttk(notedef->a) : pTrack->a;
 	chstat->d = (pTrack->d == -1) ? CnvFall(notedef->d) : pTrack->d;
 	chstat->s = (pTrack->s == -1) ? CnvSust(notedef->s) : pTrack->s;
@@ -266,6 +275,11 @@ static inline void PrepareTrack(int i, int pos)
 	tracks[i].playinfo.pan = 64;
 	tracks[i].playinfo.pitchb = 0;
 	tracks[i].playinfo.pitchr = 2;
+	tracks[i].playinfo.modType = 0;
+	tracks[i].playinfo.modDepth = 0;
+	tracks[i].playinfo.modRange = 1;
+	tracks[i].playinfo.modSpeed = 16;
+	tracks[i].playinfo.modDelay = 10;
 	tracks[i].prio = 64;
 	tracks[i].a = -1; tracks[i].d = -1; tracks[i].s = -1; tracks[i].r = -1;
 }
@@ -364,6 +378,21 @@ void seq_updatepitchbend(int track, playinfo_t* info)
 		ADSR_stat_t* chstat = ADSR_ch + i;
 		if (chstat->track != track) continue;
 		chstat->reg.TIMER = ADJUST_PITCH_BEND(chstat->_freq, info->pitchb, info->pitchr);
+	}
+}
+
+void seq_updatemodulation(int track, playinfo_t* info, int what)
+{
+	int i = 0;
+	for (i = 0; i < 16; i ++)
+	{
+		ADSR_stat_t* chstat = ADSR_ch + i;
+		if (chstat->track != track) continue;
+		if (what & BIT(0)) chstat->modDepth = info->modDepth;
+		if (what & BIT(1)) chstat->modSpeed = info->modSpeed;
+		if (what & BIT(2)) chstat->modType = info->modType;
+		if (what & BIT(3)) chstat->modRange = info->modRange;
+		if (what & BIT(4)) chstat->modDelay = info->modDelay;
 	}
 }
 
@@ -474,10 +503,6 @@ void track_tick(int n)
 			case 0xC3: // TRANSPOSE
 			case 0xC8: // TIE
 			case 0xC9: // PORTAMENTO
-			case 0xCA: // MODULATION DEPTH
-			case 0xCB: // MODULATION SPEED
-			case 0xCC: // MODULATION TYPE
-			case 0xCD: // MODULATION RANGE
 			case 0xCE: // PORTAMENTO ON/OFF
 			case 0xCF: // PORTAMENTO TIME
 			case 0xD6: // PRINT VAR
@@ -523,6 +548,42 @@ void track_tick(int n)
 				nocashMessage("NOTEWAIT");
 #endif
 				track->waitmode = SEQ_READ8(track->pos); track->pos ++;
+				break;
+			}
+			case 0xCA: // MODULATION DEPTH
+			{
+#ifdef LOG_SEQ
+				nocashMessage("MODULATION DEPTH");
+#endif
+				track->playinfo.modDepth = SEQ_READ8(track->pos); track->pos ++;
+				seq_updatemodulation(n, &track->playinfo, BIT(0));
+				break;
+			}
+			case 0xCB: // MODULATION SPEED
+			{
+#ifdef LOG_SEQ
+				nocashMessage("MODULATION SPEED");
+#endif
+				track->playinfo.modSpeed = SEQ_READ8(track->pos); track->pos ++;
+				seq_updatemodulation(n, &track->playinfo, BIT(1));
+				break;
+			}
+			case 0xCC: // MODULATION TYPE
+			{
+#ifdef LOG_SEQ
+				nocashMessage("MODULATION TYPE");
+#endif
+				track->playinfo.modType = SEQ_READ8(track->pos); track->pos ++;
+				seq_updatemodulation(n, &track->playinfo, BIT(2));
+				break;
+			}
+			case 0xCD: // MODULATION RANGE
+			{
+#ifdef LOG_SEQ
+				nocashMessage("MODULATION RANGE");
+#endif
+				track->playinfo.modRange = SEQ_READ8(track->pos); track->pos ++;
+				seq_updatemodulation(n, &track->playinfo, BIT(3));
 				break;
 			}
 			case 0xD0: // ATTACK
@@ -590,6 +651,14 @@ void track_tick(int n)
 				break;
 			}
 			case 0xE0: // MODULATION DELAY
+			{
+#ifdef LOG_SEQ
+				nocashMessage("MODULATION DELAY");
+#endif
+				track->playinfo.modDelay = SEQ_READ16(track->pos); track->pos += 2;
+				seq_updatemodulation(n, &track->playinfo, BIT(4));
+				break;
+			}
 			case 0xE3: // SWEEP PITCH
 			{
 				// TODO

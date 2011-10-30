@@ -17,7 +17,7 @@ To do
 -----
 
 - Note dropping bug appears to be gone... I hope.
-- Some SSEQ commands are not implemented yet (modulation, portamento, pitch sweep): please help!
+- Some SSEQ commands are not implemented yet (portamento, pitch sweep): please help!
 
 Thanks to:
 ----------

@@ -74,6 +74,9 @@ typedef struct
 	int count,track;
 
 	u16 _freq;
+
+	u8 modType, modSpeed, modDepth, modRange;
+	u16 modDelay, modDelayCnt, modCounter;
 	
 	sndreg_t reg;
 } ADSR_stat_t;
@@ -97,6 +100,7 @@ int CnvAttk(int attk);
 int CnvFall(int fall);
 int CnvSust(int sust);
 u16 AdjustFreq(u16 basefreq, int pitch);
+int GetSoundSine(int arg);
 
 #endif
 
