@@ -9,9 +9,14 @@ This is a homebrew player of Nintendo's SSEQ sequence format, used in commercial
 How to build
 ------------
 
-1. Place a sseq file, a sbnk file and a swar file in the fs folder
-2. Open arm9/source/template.c and edit the parameters to the PlaySeq call accordingly.
+1. Optionally place a sseq file, a sbnk file and swar files in the fs folder under the names
+   YourFile.sseq, YourFile.sbnk, YourFile.swar and YourFile2..4.swar.
 3. Compile by using make.
+
+Running the SSEQ player
+-----------------------
+
+If the .nds file is run with no parameters, it attempts to play the hardcoded files inside its NitroFS. Alternatively you can pass the paths to the sseq file, the sbnk file and the swar files (in that order) through the ARGV mechanism. In order to do so, use HomebrewMenu .argv files.
 
 To do
 -----

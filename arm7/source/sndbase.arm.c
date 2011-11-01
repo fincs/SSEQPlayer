@@ -314,7 +314,7 @@ _play_ret:
 
 		case SNDSYS_PLAYSEQ:
 		{
-			PlaySeq(&msg.seq, &msg.bnk, msg.war);
+			PlaySeq(msg.seq, msg.bnk, msg.war);
 			return;
 		}
 

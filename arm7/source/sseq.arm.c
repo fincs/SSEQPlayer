@@ -220,6 +220,7 @@ _ReadRecord:
 		for(reg = 0; reg < 8; reg ++)
 			if (note <= insdata[reg]) break;
 		if (reg == 8) return -1;
+		
 		int offset = 8 + reg*(2+sizeof(notedef_t));
 		fRecord = insdata[offset];
 		insdata += offset + 2;
@@ -291,16 +292,13 @@ static inline void PrepareTrack(int i, int pos)
 	tracks[i].a = -1; tracks[i].d = -1; tracks[i].s = -1; tracks[i].r = -1;
 }
 
-void PlaySeq(data_t* seq, data_t* bnk, data_t* war)
+void PlaySeq(void* sseqData, void* sbnkData, void* swarData[])
 {
-	seqBnk = bnk->data;
-	seqWar[0] = war[0].data;
-	seqWar[1] = war[1].data;
-	seqWar[2] = war[2].data;
-	seqWar[3] = war[3].data;
+	seqBnk = sbnkData;
+	memcpy(seqWar, swarData, 4*sizeof(void*));
 
 	// Load sequence data
-	seqData = (u8*)seq->data + ((u32*)seq->data)[6];
+	seqData = (u8*)sseqData + ((u32*)sseqData)[6];
 	ntracks = 1;
 	
 	int pos = 0;

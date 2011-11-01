@@ -45,31 +45,35 @@ void StopSmp(int handle)
 }
 */
 
-static bool LoadFile(data_t* pData, const char* fname)
+void* LoadFile(const char* fname, size_t* outSize)
 {
+	size_t size; void* ptr;
+	if (outSize) *outSize = 0;
+
 	FILE* f = fopen(fname, "rb");
-	if (!f) return false;
+	if (!f) return NULL;
 	fseek(f, 0, SEEK_END);
-	pData->size = ftell(f);
+	size = ftell(f);
 	rewind(f);
-	pData->data = malloc(pData->size);
-	fread(pData->data, 1, pData->size, f);
+
+	ptr = malloc(size);
+	fread(ptr, 1, size, f);
 	fclose(f);
-	DC_FlushRange(pData->data, pData->size);
-	return true;
+
+	DC_FlushRange(ptr, size);
+
+	if (outSize) *outSize = size;
+	return ptr;
 }
 
-void PlaySeq(const char* seqFile, const char* bnkFile, const char* war1, const char* war2, const char* war3, const char* war4)
+void PlaySeq(void* sseqData, void* sbnkData, void* swarData[])
 {
 	sndsysMsg msg;
 	msg.msg = SNDSYS_PLAYSEQ;
 
-	LoadFile(&msg.seq, seqFile);
-	LoadFile(&msg.bnk, bnkFile);
-	LoadFile(msg.war + 0, war1);
-	LoadFile(msg.war + 1, war2);
-	LoadFile(msg.war + 2, war3);
-	LoadFile(msg.war + 3, war4);
+	msg.seq = sseqData;
+	msg.bnk = sbnkData;
+	memcpy(msg.war, swarData, 4*sizeof(void*));
 
 	fifoSendDatamsg(FIFO_SNDSYS, sizeof(msg), (u8*) &msg);
 }

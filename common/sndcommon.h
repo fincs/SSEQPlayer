@@ -38,9 +38,9 @@ typedef struct
 		*/
 		struct
 		{
-			data_t seq;
-			data_t bnk;
-			data_t war[4];
+			void* seq;
+			void* bnk;
+			void* war[4];
 		};
 	};
 } sndsysMsg;
@@ -89,7 +89,7 @@ volatile extern int ADSR_mastervolume;
 
 void seq_tick();
 
-void PlaySeq(data_t* seq, data_t* bnk, data_t* war);
+void PlaySeq(void*, void*, void*[]);
 void StopSeq();
 
 int ds_freechn();
@@ -110,7 +110,8 @@ int GetSoundSine(int arg);
 int PlaySmp(sndreg_t* smp, int a, int d, int s, int r, int vol, int vel, int pan);
 void StopSmp(int handle);
 */
-void PlaySeq(const char*, const char*, const char*, const char*, const char*, const char*);
+void PlaySeq(void*, void*, void*[]);
 void StopSeq();
+void* LoadFile(const char*, size_t*);
 
 #endif
