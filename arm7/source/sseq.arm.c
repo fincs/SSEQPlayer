@@ -176,6 +176,7 @@ int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* play
 	notedef_t* notedef = NULL;
 	SWAVINFO* wavinfo = NULL;
 	int fRecord = INST_TYPE(inst);
+_ReadRecord:
 	if (fRecord == 0) return -1;
 	else if (fRecord == 1) notedef = (notedef_t*) insdata;
 	else if (fRecord < 4)
@@ -208,7 +209,10 @@ int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* play
 		if ((insdata[0] <= note) && (note <= insdata[1]))
 		{
 			int rn = note - insdata[0];
-			notedef = (notedef_t*) (insdata + 2 + 2 + rn*(2+sizeof(notedef_t)));
+			int offset = 2 + rn*(2+sizeof(notedef_t));
+			fRecord = insdata[offset];
+			insdata += offset + 2;
+			goto _ReadRecord;
 		}else return -1;
 	}else if (fRecord == 17)
 	{
@@ -216,7 +220,10 @@ int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* play
 		for(reg = 0; reg < 8; reg ++)
 			if (note <= insdata[reg]) break;
 		if (reg == 8) return -1;
-		notedef = (notedef_t*) (insdata + 8 + 2 + reg*(2+sizeof(notedef_t)));
+		int offset = 8 + reg*(2+sizeof(notedef_t));
+		fRecord = insdata[offset];
+		insdata += offset + 2;
+		goto _ReadRecord;
 	}else return -1;
 
 	if (!isPsg)
