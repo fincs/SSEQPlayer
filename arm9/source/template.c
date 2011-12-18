@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <sndcommon.h>
 #include <filesystem.h>
+#include <fat.h>
 
 int error(const char* txt)
 {
@@ -84,6 +85,12 @@ int main(int argc, char* argv[])
 		}
 	}else
 	{
+		if (!fatInitDefault())
+		{
+			error("Can't initialize FAT!");
+			anykey();
+			return 0;
+		}
 		if (argvLoad(argc-1, argv+1, &g_sseqData, &g_sbnkData, g_swarData) != 0)
 		{
 			anykey();
