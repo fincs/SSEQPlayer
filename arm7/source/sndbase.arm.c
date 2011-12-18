@@ -11,7 +11,7 @@ void InstallSoundSys()
 	/* Power sound on */
 	powerOn(POWER_SOUND);
 	writePowerManagement(PM_CONTROL_REG, ( readPowerManagement(PM_CONTROL_REG) & ~PM_SOUND_MUTE ) | PM_SOUND_AMP );
-	REG_SOUNDCNT = SOUND_ENABLE;
+	REG_SOUNDCNT |= SOUND_ENABLE;
 	REG_MASTER_VOLUME = 127;
 
 	/* Install timer */
@@ -23,7 +23,10 @@ void InstallSoundSys()
 	/* Clear track-channel assignations */
 	register int i;
 	for (i = 0; i < 16; i ++)
+	{
 		ADSR_ch[i].track = -1;
+		ADSR_ch[i].prio = 0;
+	}
 }
 
 static void ADSR_tick();
@@ -46,6 +49,7 @@ static void sound_timer()
 }
 
 ADSR_stat_t ADSR_ch[16];
+static u16 ADSR_vol[16];
 
 volatile int ADSR_mastervolume = 127;
 
@@ -74,17 +78,23 @@ static void ADSR_tickchn(int ch)
 #define RELRATE chstat->r
 #define SETSTATE(s) chstat->state = (s)
 
+	ADSR_vol[ch] = 0;
+
+	if (chstat->state != ADSR_START && !SCHANNEL_ACTIVE(ch))
+	{
+_kill_chn:
+		SETSTATE(ADSR_NONE);
+		chstat->count = 0;
+		chstat->track = -1;
+		chstat->prio = 0;
+		SCHANNEL_CR(ch) = 0;
+		return;
+	}
+
 	switch (chstat->state)
 	{
 		case ADSR_NONE: return;
 		case ADSR_SUSTAIN:
-			if (!SCHANNEL_ACTIVE(ch))
-			{
-				SETSTATE(ADSR_NONE);
-				chstat->count = 0;
-				chstat->track = -1;
-				return;
-			}
 			break;
 		case ADSR_START:
 			SCHANNEL_CR(ch) = 0;
@@ -106,15 +116,7 @@ static void ADSR_tickchn(int ch)
 		case ADSR_RELEASE:
 			AMPL -= RELRATE;
 			if (AMPL <= -ADSR_THRESHOLD)
-			{
-//__adsr_release:
-				SETSTATE(ADSR_NONE);
-				//REG.CR = 0;
-				chstat->count = 0;
-				chstat->track = -1;
-				SCHANNEL_CR(ch) = 0;
-				return;
-			}
+				goto _kill_chn;
 			break;
 	}
 
@@ -178,6 +180,7 @@ static void ADSR_tickchn(int ch)
 	else if (totalvol < (-120 + 723)) cr |= SOUND_VOLDIV(2);
 	else if (totalvol < (-60 + 723)) cr |= SOUND_VOLDIV(1);
 	
+	ADSR_vol[ch] = ((cr & SOUND_VOL(0x7F)) << 4) >> ((cr & SOUND_VOLDIV(3)) >> 8);
 	SCHANNEL_CR(ch) = cr;
 	u16 timer = REG.TIMER;
 	if (modType == 0) timer = AdjustFreq(timer, modParam);
@@ -196,25 +199,36 @@ static void ADSR_tickchn(int ch)
 #undef SETSTATE
 }
 
-int ds_freechn()
-{
-	register int i;
-	for(i = 0; i < 16; i ++) if(!SCHANNEL_ACTIVE(i)) return i;
-	return -1;
-}
+static u8 pcmChnArray[] = { 4, 5, 6, 7, 2, 0, 3, 1, 8, 9, 10, 11, 14, 12, 15, 13 };
+static u8 psgChnArray[] = { 13, 12, 11, 10, 9, 8 };
+static u8 noiseChnArray[] = { 15, 14 };
+static u8 arraySizes[] = { sizeof(pcmChnArray), sizeof(psgChnArray), sizeof(noiseChnArray) };
+static u8* arrayArray[] = { pcmChnArray, psgChnArray, noiseChnArray };
 
-int ds_freepsg()
+int ds_allocchn(int type, int prio)
 {
-	register int i;
-	for(i = 8; i < 14; i ++) if(!SCHANNEL_ACTIVE(i)) return i;
-	return -1;
-}
+	u8* chnArray = arrayArray[type];
+	u8 arraySize = arraySizes[type];
 
-int ds_freenoise()
-{
-	register int i;
-	for(i = 14; i < 16; i ++) if(!SCHANNEL_ACTIVE(i)) return i;
-	return -1;
+	int i;
+	int curChnNo = -1;
+	for (i = 0; i < arraySize; i ++)
+	{
+		int thisChnNo = chnArray[i];
+		ADSR_stat_t* thisChn = ADSR_ch + thisChnNo;
+		ADSR_stat_t* curChn = ADSR_ch + curChnNo;
+		if (curChnNo != -1 && thisChn->prio >= curChn->prio)
+		{
+			if (thisChn->prio != curChn->prio)
+				continue;
+			if (ADSR_vol[curChnNo] <= ADSR_vol[thisChnNo])
+				continue;
+		}
+		curChnNo = thisChnNo;
+	}
+
+	if (curChnNo == -1 || prio < ADSR_ch[curChnNo].prio) return -1;
+	return curChnNo;
 }
 
 // Adapted from VGMTrans

@@ -92,9 +92,9 @@ void seq_tick();
 void PlaySeq(void*, void*, void*[]);
 void StopSeq();
 
-int ds_freechn();
-int ds_freepsg();
-int ds_freenoise();
+enum { CHN_PCM, CHN_PSG, CHN_NOISE };
+
+int ds_allocchn(int type, int prio);
 
 int CnvAttk(int attk);
 int CnvFall(int fall);

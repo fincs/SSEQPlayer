@@ -93,57 +93,6 @@ typedef struct
 	u8 pan;
 } notedef_t;
 
-int ds_freechn2(int prio)
-{
-	register int i;
-	for(i = 0; i < 16; i ++)
-		if (!SCHANNEL_ACTIVE(i) && ADSR_ch[i].state != ADSR_START)
-			return i;
-	int j = -1, ampl = 1;
-	for(i = 0; i < 16; i ++)
-		if (ADSR_ch[i].state == ADSR_RELEASE && ADSR_ch[i].ampl < ampl)
-			ampl = ADSR_ch[i].ampl, j = i;
-	if (j != -1) return j;
-	for(i = 0; i < 16; i ++)
-		if (ADSR_ch[i].prio < prio)
-			return i;
-	return -1;
-}
-
-int ds_freepsgtonechn(int prio)
-{
-	register int i;
-	for(i = 8; i < 14; i ++)
-		if (!SCHANNEL_ACTIVE(i) && ADSR_ch[i].state != ADSR_START)
-			return i;
-	int j = -1, ampl = 1;
-	for(i = 8; i < 14; i ++)
-		if (ADSR_ch[i].state == ADSR_RELEASE && ADSR_ch[i].ampl < ampl)
-			ampl = ADSR_ch[i].ampl, j = i;
-	if (j != -1) return j;
-	for(i = 8; i < 14; i ++)
-		if (ADSR_ch[i].prio < prio)
-			return i;
-	return -1;
-}
-
-int ds_freepsgnoisechn(int prio)
-{
-	register int i;
-	for(i = 14; i < 16; i ++)
-		if (!SCHANNEL_ACTIVE(i) && ADSR_ch[i].state != ADSR_START)
-			return i;
-	int j = -1, ampl = 1;
-	for(i = 14; i < 16; i ++)
-		if (ADSR_ch[i].state == ADSR_RELEASE && ADSR_ch[i].ampl < ampl)
-			ampl = ADSR_ch[i].ampl, j = i;
-	if (j != -1) return j;
-	for(i = 14; i < 16; i ++)
-		if (ADSR_ch[i].prio < prio)
-			return i;
-	return -1;
-}
-
 typedef struct
 {
 	int count;
@@ -166,10 +115,9 @@ trackstat_t tracks[16];
 int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* playinfo, int duration, int track)
 {
 	int isPsg = 0;
-	int ch = ds_freechn2(prio);
-	if (ch < 0) return -1;
+	int ch;
 
-	ADSR_stat_t* chstat = ADSR_ch + ch;
+	ADSR_stat_t* chstat;
 	
 	u32 inst = GetInstr(bnk, instr);
 	u8* insdata = GETINSTDATA(bnk, inst);
@@ -188,14 +136,14 @@ _ReadRecord:
 		notedef = (notedef_t*) insdata;
 		if (fRecord == 3)
 		{
-			ch = ds_freepsgnoisechn(prio);
+			ch = ds_allocchn(CHN_NOISE, prio);
 			if (ch < 0) return -1;
 			chstat = ADSR_ch + ch;
 			chstat->reg.CR = SOUND_FORMAT_PSG | SCHANNEL_ENABLE;
 		}else
 		{
 #define SOUND_DUTY(n) ((n)<<24)
-			ch = ds_freepsgtonechn(prio);
+			ch = ds_allocchn(CHN_PSG, prio);
 			if (ch < 0) return -1;
 			chstat = ADSR_ch + ch;
 			chstat->reg.CR = SOUND_FORMAT_PSG | SCHANNEL_ENABLE | SOUND_DUTY(notedef->wavid);
@@ -229,6 +177,10 @@ _ReadRecord:
 
 	if (!isPsg)
 	{
+		ch = ds_allocchn(CHN_PCM, prio);
+		if (ch < 0) return -1;
+		chstat = ADSR_ch + ch;
+
 		wavinfo = GetWav(war[notedef->warid], notedef->wavid);
 		chstat->reg.CR = SOUND_FORMAT(wavinfo->nWaveType) | SOUND_LOOP(wavinfo->bLoop) | SCHANNEL_ENABLE;
 		chstat->reg.SOURCE = (u32)GETSAMP(wavinfo);
@@ -267,6 +219,7 @@ _ReadRecord:
 void _NoteStop(int n)
 {
 	ADSR_ch[n].state = ADSR_RELEASE;
+	ADSR_ch[n].prio = 1;
 }
 
 #define SEQ_READ8(pos) seqData[(pos)]
