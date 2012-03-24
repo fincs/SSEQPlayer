@@ -17,12 +17,14 @@ Running the SSEQ player
 -----------------------
 
 If the .nds file is run with no parameters, it attempts to play the hardcoded files inside its NitroFS. Alternatively you can pass the paths to the sseq file, the sbnk file and the swar files (in that order) through the ARGV mechanism. In order to do so, use HomebrewMenu .argv files.
+Note: recent devkitARM versions produce code that is choked on by no$gba. Use a different DS emulator or *cough* real hardware.
 
 To do
 -----
 
 - Note dropping bug appears to be gone... I hope.
-- Some SSEQ commands are not implemented yet (portamento, pitch sweep): please help!
+- All commands referring to variables/math are still completely unsupported, because I still need to do the research.
+- The code really needs a rewrite.
 
 Thanks to:
 ----------

@@ -97,13 +97,16 @@ typedef struct
 {
 	int count;
 	int pos;
-	int ret;
 	int prio;
 	u16 patch;
 	u16 waitmode;
 	playinfo_t playinfo;
 	int a,d,s,r;
 	int loopcount,looppos;
+	int ret[3];
+	int retpos;
+	u8 portakey, portatime;
+	s16 sweepPitch;
 } trackstat_t;
 
 int ntracks = 0;
@@ -111,6 +114,8 @@ u8* seqData = NULL;
 void* seqBnk = NULL;
 void* seqWar[4] = {NULL, NULL, NULL, NULL};
 trackstat_t tracks[16];
+
+void seq_updatechnporta(ADSR_stat_t* chstat, trackstat_t* pTrack);
 
 int _Note(void* bnk, void** war, int instr, int note, int prio, playinfo_t* playinfo, int duration, int track)
 {
@@ -211,6 +216,10 @@ _ReadRecord:
 	chstat->prio = prio;
 	chstat->count = duration;
 	chstat->track = track;
+	chstat->note = note;
+	chstat->patch = instr;
+	seq_updatechnporta(chstat, pTrack);
+	pTrack->portakey = note | (pTrack->portakey & 0x80);
 	chstat->state = ADSR_START;
 
 	return ch;
@@ -242,6 +251,9 @@ static inline void PrepareTrack(int i, int pos)
 	tracks[i].playinfo.modSpeed = 16;
 	tracks[i].playinfo.modDelay = 10;
 	tracks[i].prio = 64;
+	tracks[i].retpos = 0;
+	tracks[i].portakey = 0x80;
+	tracks[i].portatime = 0;
 	tracks[i].a = -1; tracks[i].d = -1; tracks[i].s = -1; tracks[i].r = -1;
 }
 
@@ -354,6 +366,30 @@ void seq_updatemodulation(int track, playinfo_t* info, int what)
 	}
 }
 
+void seq_updatechnporta(ADSR_stat_t* chstat, trackstat_t* pTrack)
+{
+	chstat->sweepPitch = pTrack->sweepPitch;
+	if (pTrack->portakey & 0x80)
+	{
+		chstat->sweepLen = 0;
+		chstat->sweepCnt = 0;
+		return;
+	}
+
+	int diff = ((int)pTrack->portakey - (int)chstat->note) << 22;
+	chstat->sweepPitch += diff >> 16;
+
+	if (pTrack->portatime == 0)
+		chstat->sweepLen = (chstat->count * 240 + seq_bpm - 1) / seq_bpm;
+	else
+	{
+		u32 sq_time = pTrack->portatime * pTrack->portatime;
+		int abs_sp = chstat->sweepPitch;
+		abs_sp = abs_sp < 0 ? -abs_sp : abs_sp;
+		chstat->sweepLen = (abs_sp*sq_time) >> 11;
+	}
+}
+
 void track_tick(int n)
 {
 	trackstat_t* track = tracks + n;
@@ -420,7 +456,7 @@ void track_tick(int n)
 				nocashMessage("CALL");
 #endif
 				int dest = SEQ_READ24(track->pos);
-				track->ret = track->pos + 3;
+				track->ret[track->retpos++] = track->pos + 3;
 				track->pos = dest;
 				break;
 			}
@@ -468,7 +504,7 @@ void track_tick(int n)
 #ifdef LOG_SEQ
 				nocashMessage("RET");
 #endif
-				track->pos = track->ret;
+				track->pos = track->ret[--track->retpos];
 				break;
 			}
 			case 0xC0: // PAN
@@ -499,9 +535,6 @@ void track_tick(int n)
 			}
 			case 0xC3: // TRANSPOSE
 			case 0xC8: // TIE
-			case 0xC9: // PORTAMENTO
-			case 0xCE: // PORTAMENTO ON/OFF
-			case 0xCF: // PORTAMENTO TIME
 			case 0xD6: // PRINT VAR
 			{
 				// TODO
@@ -511,12 +544,36 @@ void track_tick(int n)
 				track->pos ++;
 				break;
 			}
+			case 0xC9: // PORTAMENTO
+			{
+#ifdef LOG_SEQ
+				nocashMessage("PORTAMENTO");
+#endif
+				track->portakey = SEQ_READ8(track->pos); track->pos ++;
+				break;
+			}
+			case 0xCE: // PORTAMENTO ON/OFF
+			{
+#ifdef LOG_SEQ
+				nocashMessage("PORTAMENTO ON/OFF");
+#endif
+				track->portakey &= ~0x80;
+				track->portakey |= (!SEQ_READ8(track->pos)) << 7; track->pos ++;
+				break;
+			}
+			case 0xCF: // PORTAMENTO TIME
+			{
+#ifdef LOG_SEQ
+				nocashMessage("PORTAMENTO TIME");
+#endif
+				track->portatime = SEQ_READ8(track->pos); track->pos ++;
+				break;
+			}
 			case 0xC4: // PITCH BEND
 			{
 #ifdef LOG_SEQ
 				nocashMessage("PITCH BEND");
 #endif
-
 				track->playinfo.pitchb = (s8)SEQ_READ8(track->pos); track->pos ++;
 				seq_updatepitchbend(n, &track->playinfo);
 				break;
@@ -526,7 +583,6 @@ void track_tick(int n)
 #ifdef LOG_SEQ
 				nocashMessage("PITCH BEND RANGE");
 #endif
-
 				track->playinfo.pitchr = SEQ_READ8(track->pos); track->pos ++;
 				seq_updatepitchbend(n, &track->playinfo);
 				break;
@@ -658,11 +714,10 @@ void track_tick(int n)
 			}
 			case 0xE3: // SWEEP PITCH
 			{
-				// TODO
 #ifdef LOG_SEQ
-				nocashMessage("DUMMY2");
+				nocashMessage("SWEEP PITCH");
 #endif
-				track->pos += 2;
+				track->sweepPitch = SEQ_READ16(track->pos); track->pos += 2;
 				break;
 			}
 			case 0xE1: // TEMPO

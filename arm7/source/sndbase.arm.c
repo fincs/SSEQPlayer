@@ -121,14 +121,28 @@ _kill_chn:
 	}
 
 	// Update the modulation params
-	int modParam = 0, modType = chstat->modType;
+	int modParam = 0, modType = chstat->modType, addPitch = 0;
 	do
 	{
+		if (!chstat->modDepth)
+			break;
+
 		if (chstat->modDelayCnt < chstat->modDelay)
 		{
 			chstat->modDelayCnt ++;
 			break;
 		}
+
+		// Get the current modulation parameter
+		modParam = GetSoundSine(chstat->modCounter >> 8) * chstat->modRange * chstat->modDepth;
+
+		if (modType == 0)
+			addPitch = (s64)(modParam * 60) >> 14;
+		else
+			// This ugly formula whose exact meaning and workings I cannot figure out are used for pitch/volume modulation.
+			modParam = ((modParam &~ 0xFC000000) >> 8) | ((((modParam < 0 ? -1 : 0) << 6) | ((u32)modParam >> 26)) << 18);
+
+		// Update the modulation variables
 
 		u16 speed = (u16)chstat->modSpeed << 6;
 		u16 counter = (chstat->modCounter + speed) >> 8;
@@ -139,11 +153,19 @@ _kill_chn:
 		chstat->modCounter += speed;
 		chstat->modCounter &= 0xFF;
 		chstat->modCounter |= counter << 8;
-
-		modParam = GetSoundSine(chstat->modCounter >> 8) * chstat->modRange * chstat->modDepth;
 	}while(0);
 
-	modParam >>= 8;
+	if (chstat->sweepPitch != 0)
+	{
+		u32 cnt = chstat->sweepCnt;
+		u32 len = chstat->sweepLen;
+		if (cnt <= len)
+		{
+			addPitch += (s32)(((s64)chstat->sweepPitch*(len-cnt))/len);
+			if (cnt < len)
+				chstat->sweepCnt ++;
+		}
+	}
 
 #ifdef LOG_SEQ
 	char buf[30];
@@ -174,7 +196,7 @@ _kill_chn:
 	if (pan < 0) pan = 0;
 	if (pan > 127) pan = 127;
 
-	u32 cr = SCHANNEL_CR(ch) &~ (SOUND_VOL(0x7F) | SOUND_VOLDIV(3) | SOUND_PAN(0x7F));
+	u32 cr = REG.CR &~ (SOUND_VOL(0x7F) | SOUND_VOLDIV(3) | SOUND_PAN(0x7F));
 	cr |= SOUND_VOL(res) | SOUND_PAN(pan);
 	if (totalvol < (-240 + 723)) cr |= SOUND_VOLDIV(3);
 	else if (totalvol < (-120 + 723)) cr |= SOUND_VOLDIV(2);
@@ -183,7 +205,7 @@ _kill_chn:
 	ADSR_vol[ch] = ((cr & SOUND_VOL(0x7F)) << 4) >> ((cr & SOUND_VOLDIV(3)) >> 8);
 	SCHANNEL_CR(ch) = cr;
 	u16 timer = REG.TIMER;
-	if (modType == 0) timer = AdjustFreq(timer, modParam);
+	if (addPitch) timer = AdjustFreq(timer, addPitch);
 	SCHANNEL_TIMER(ch) = -timer;
 
 #undef AMPL

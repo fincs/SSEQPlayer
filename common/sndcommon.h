@@ -77,6 +77,10 @@ typedef struct
 
 	u8 modType, modSpeed, modDepth, modRange;
 	u16 modDelay, modDelayCnt, modCounter;
+	u8 note, patch;
+
+	u32 sweepLen, sweepCnt;
+	s16 sweepPitch;
 	
 	sndreg_t reg;
 } ADSR_stat_t;
